@@ -1,0 +1,39 @@
+{
+  "providers": {
+    "ollama": {
+      "models": [
+        "codellama",
+        "llama2"
+      ],
+      "capabilities": [
+        "code",
+        "text"
+      ]
+    },
+    "lm_studio": {
+      "models": [
+        "mixtral"
+      ],
+      "capabilities": [
+        "code",
+        "text",
+        "analysis"
+      ]
+    },
+    "tgpt": {
+      "models": [
+        "gpt4"
+      ],
+      "capabilities": [
+        "code",
+        "text",
+        "analysis"
+      ]
+    }
+  },
+  "routing": {
+    "default_provider": "ollama",
+    "capability_routing": true,
+    "load_balancing": true
+  }
+}

@@ -1,0 +1,145 @@
+{
+    "monitoring": {
+        "enabled": true,
+        "interval": 30,
+        "retention_period": 86400,
+        "metrics_port": 9090
+    },
+    "components": {
+        "store": {
+            "enabled": true,
+            "metrics": [
+                "pattern_count",
+                "evolution_rate",
+                "storage_usage",
+                "query_latency"
+            ],
+            "thresholds": {
+                "pattern_count": 1000000,
+                "storage_usage": 85,
+                "query_latency": 1000
+            }
+        },
+        "model_gateway": {
+            "enabled": true,
+            "metrics": [
+                "request_count",
+                "error_rate",
+                "latency",
+                "success_rate",
+                "model_usage"
+            ],
+            "thresholds": {
+                "error_rate": 0.1,
+                "latency": 2000,
+                "success_rate": 0.95
+            }
+        },
+        "credential_manager": {
+            "enabled": true,
+            "metrics": [
+                "key_age",
+                "rotation_count",
+                "audit_entries"
+            ],
+            "thresholds": {
+                "key_age": 86400,
+                "audit_entries": 10000
+            }
+        },
+        "platform_manager": {
+            "enabled": true,
+            "metrics": [
+                "cpu_usage",
+                "memory_usage",
+                "disk_usage",
+                "network_io"
+            ],
+            "thresholds": {
+                "cpu_usage": 80,
+                "memory_usage": 85,
+                "disk_usage": 90
+            }
+        }
+    },
+    "alerts": {
+        "enabled": true,
+        "channels": [
+            {
+                "type": "log",
+                "level": "WARNING",
+                "format": "%(asctime)s [%(levelname)s] %(message)s"
+            },
+            {
+                "type": "metrics",
+                "endpoint": "http://localhost:9090/metrics"
+            }
+        ],
+        "rules": [
+            {
+                "name": "high_error_rate",
+                "condition": "error_rate > 0.1",
+                "duration": "5m",
+                "severity": "critical"
+            },
+            {
+                "name": "high_latency",
+                "condition": "latency > 2000",
+                "duration": "5m",
+                "severity": "warning"
+            },
+            {
+                "name": "low_success_rate",
+                "condition": "success_rate < 0.95",
+                "duration": "5m",
+                "severity": "warning"
+            },
+            {
+                "name": "high_resource_usage",
+                "condition": "cpu_usage > 80 || memory_usage > 85 || disk_usage > 90",
+                "duration": "5m",
+                "severity": "warning"
+            }
+        ]
+    },
+    "recovery": {
+        "enabled": true,
+        "strategies": {
+            "restart_component": {
+                "max_attempts": 3,
+                "backoff_factor": 2
+            },
+            "failover": {
+                "enabled": true,
+                "timeout": 30
+            }
+        },
+        "actions": [
+            {
+                "trigger": "high_error_rate",
+                "action": "restart_component",
+                "target": "affected_component"
+            },
+            {
+                "trigger": "high_resource_usage",
+                "action": "notify",
+                "target": "system_admin"
+            }
+        ]
+    },
+    "reporting": {
+        "enabled": true,
+        "interval": 3600,
+        "metrics": [
+            "component_health",
+            "system_performance",
+            "error_rates",
+            "resource_usage"
+        ],
+        "format": "json",
+        "retention": {
+            "reports": 30,
+            "metrics": 90
+        }
+    }
+}

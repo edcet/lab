@@ -1,0 +1,34 @@
+[tools]
+# Core development tools
+python = "3.12.1"  # Latest stable Python
+node = "20.11.0"   # Latest LTS Node.js
+go = "1.21.5"      # Latest stable Go
+rust = "stable"    # Latest stable Rust
+
+[env]
+# XDG Base Directory Specification
+XDG_CONFIG_HOME = { value = "~/.config" }
+XDG_CACHE_HOME = { value = "~/.cache" }
+XDG_DATA_HOME = { value = "~/.local/share" }
+XDG_STATE_HOME = { value = "~/.local/state" }
+
+# Project-specific settings
+PYTHONPATH = { value = "src" }
+VIRTUAL_ENV = { value = ".venv" }
+
+# Note: PATH management moved to Zsh's native handling
+# This prevents conflicts and maintains proper ordering
+
+[tasks]
+setup = "mise install && mise exec -- pip install -e '.[dev]'"
+update = "mise upgrade && mise exec -- pip install --upgrade -e '.[dev]'"
+lint = "mise exec -- pre-commit run --all-files"
+test = "mise exec -- pytest"
+clean = [
+    "rm -rf .venv",
+    "rm -rf node_modules",
+    "rm -rf dist",
+    "rm -rf *.egg-info",
+    "find . -type d -name __pycache__ -exec rm -rf {} +",
+    "find . -type f -name '*.pyc' -delete"
+]

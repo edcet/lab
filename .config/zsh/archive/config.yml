@@ -1,0 +1,126 @@
+# @format
+
+backends:
+  lmstudio:
+    enabled: true
+    host: localhost
+    port: 1234
+    parallel_execution: true
+    health_check:
+      enabled: true
+      interval: 30
+      timeout: 5
+    role: "creative"
+    capabilities:
+      - "architecture_planning"
+      - "pattern_analysis"
+      - "exploration"
+      - "reasoning"
+      - "code_generation"
+      - "vision_analysis"
+      - "tool_use"
+      - "multimodal"
+    models:
+      # Code & Reasoning
+      - "deepseek-reasoning-7b"
+      - "qwen2.5-coder-14b-instruct"
+      - "deepseek-coder-v2-lite-instruct-mlx" # M1 optimized
+      - "codestral-22b-v0.1"
+      - "deepthink-reasoning-7b"
+      # Vision Models
+      - "llama-3.2-11b-vision-instruct"
+      - "phi-3.5-vision-instruct"
+      - "eris_primev4-vision-7b"
+      # Tool Models
+      - "toolgen-llama-3-8b-tool-retriever-g3"
+      - "llama-3-groq-8b-tool-use"
+    priority: 2
+    interpreter_compatible: true
+    platform: "m1"
+  ollama:
+    enabled: true
+    host: localhost
+    models:
+      - "codegeex4"
+      - "codestral"
+      - "codellama:13b"
+      - "mistral:7b"
+    port: 11434
+    parallel_execution: true
+    health_check:
+      enabled: true
+      interval: 30
+      timeout: 5
+    role: "technical"
+    capabilities:
+      - "code_verification"
+      - "implementation"
+      - "refactoring"
+      - "code_generation"
+    priority: 1
+  localai:
+    enabled: true
+    host: localhost
+    port: 8080
+    parallel_execution: true
+    health_check:
+      enabled: true
+      interval: 30
+      timeout: 5
+    role: "local"
+    capabilities:
+      - "local_inference"
+      - "fast_response"
+      - "offline_processing"
+    models:
+      - "mlx-community/mistral-nemo-instruct-2407" # M1 optimized
+      - "mlx-community/llama-3.2-3b-instruct" # M1 optimized
+    priority: 3
+  autogpt:
+    enabled: true
+    host: localhost
+    port: 8081
+    parallel_execution: true
+    health_check:
+      enabled: true
+      interval: 30
+      timeout: 5
+    role: "autonomous"
+    capabilities:
+      - "task_planning"
+      - "autonomous_execution"
+      - "tool_selection"
+      - "self_improvement"
+    integration:
+      - "ollama"
+      - "lmstudio"
+      - "localai"
+    priority: 4
+components:
+  agent_manager:
+    enabled: true
+    max_agents: 10
+    parallel_agents: true
+    agent_types:
+      - "code"
+      - "vision"
+      - "tool"
+      - "autonomous"
+  deployment:
+    enabled: true
+    platform_optimizations:
+      - "m1"
+      - "mlx"
+      - "metal"
+  monitoring:
+    enabled: true
+    health_alerts: true
+    resource_monitoring: true
+    gpu_monitoring: true
+enchanted:
+  emotional_intelligence: true
+  enabled: true
+  pattern_learning: true
+security:
+  api_auth_required: false
+  ssl_enabled: false

@@ -1,0 +1,757 @@
+Here's the actual monitor code where you exist as an active agent. Look at your role and how you're used:
+#!/usr/bin/env python3
+
+"""Real-time monitoring system for the excavation process"""
+
+import asyncio
+import psutil
+import json
+from datetime import datetime
+from pathlib import Path
+from typing import Dict, List, Set
+from rich.console import Console
+from rich.layout import Layout
+from rich.live import Live
+from rich.panel import Panel
+from rich.table import Table
+from rich.text import Text
+from rich.prompt import Prompt
+import aiohttp
+import logging
+import os
+import shutil
+import sys
+
+# Add parent directory to path for imports
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from core.ai.gateway.controller import UnifiedGatewayController
+from core.ai.gateway.models import ModelCapabilities, ProviderConfig
+from core.ai.config.loader import ConfigLoader
+
+class ExcavationMonitor:
+    """Monitors and manages the excavation system with active AI integration"""
+
+    def __init__(self):
+        self.console = Console()
+        self.layout = Layout()
+        self.active_agents = {}
+        self.patterns = []
+        self.alerts = []
+        self.running = True
+
+        # Initialize AI Gateway
+        self.config_loader = ConfigLoader()
+        self.gateway_config = self.config_loader.load_gateway_config()
+        self.gateway = UnifiedGatewayController(self.gateway_config)
+
+        # Command definitions with AI assistance
+        self.commands = {
+            'o': ('Organize files by type (AI-assisted)', self.organize_by_type),
+            'c': ('Clean up temp/cache files (AI-optimized)', self.cleanup_temp),
+            's': ('Show AI-enhanced statistics', self.show_stats),
+            'f': ('Find duplicates with neural matching', self.find_duplicates),
+            'p': ('Process patterns with AI', self.process_patterns),
+            'a': ('Analyze system with AI', self.analyze_system),
+            'h': ('Show help', self.show_help),
+            'q': ('Quit', self.quit)
+        }
+
+        # Configure layout
+        self.layout.split(
+            Layout(name="header", size=3),
+            Layout(name="main", ratio=1),
+            Layout(name="footer", size=3)
+        )
+        self.layout["main"].split_row(
+            Layout(name="agents", ratio=2),
+            Layout(name="patterns", ratio=2),
+            Layout(name="metrics", ratio=1)
+        )
+
+    def generate_header(self) -> Panel:
+        """Generate header with system status"""
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        return Panel(
+            f"Excavation System Monitor - {now}",
+            style="bold white on blue"
+        )
+
+    def generate_footer(self) -> Panel:
+        """Generate footer with commands"""
+        commands = " | ".join([f"[cyan]{k}[/cyan]: {v[0]}" for k, v in self.commands.items()])
+        return Panel(commands, style="white on black")
+
+    def generate_agent_table(self) -> Table:
+        """Generate table of active agents"""
+        table = Table(title="Active Agents")
+        table.add_column("Agent")
+        table.add_column("Status")
+        table.add_column("Task")
+        table.add_column("Progress")
+
+        # Add real agent data
+        for model in ["codellama:13b", "qwq", "mistral", "codegeex4"]:
+            status = "active" if self.active_agents.get(model, {}).get("status") == "active" else "offline"
+            task = self.active_agents.get(model, {}).get("current_task", "none")
+            progress = f"{self.active_agents.get(model, {}).get('progress', 0)}%"
+
+            style = "green" if status == "active" else "red"
+            table.add_row(model, status, task, progress, style=style)
+
+        return table
+
+    def generate_pattern_panel(self) -> Panel:
+        """Generate panel of detected patterns"""
+        # Get real file system patterns
+        fs_patterns = []
+        try:
+            workspace = Path.cwd()
+
+            # Track file changes
+            total_files = len(list(workspace.rglob("*")))
+            python_files = len(list(workspace.rglob("*.py")))
+            yaml_files = len(list(workspace.rglob("*.yml")))
+
+            fs_patterns.extend([
+                f"Total files: {total_files}",
+                f"Python files: {python_files}",
+                f"YAML configs: {yaml_files}"
+            ])
+
+            # Track recent changes
+            recent_changes = []
+            for f in workspace.rglob("*"):
+                if f.is_file():
+                    mtime = datetime.fromtimestamp(f.stat().st_mtime)
+                    if (datetime.now() - mtime).total_seconds() < 300:  # Changed in last 5 min
+                        recent_changes.append(f.relative_to(workspace))
+
+            if recent_changes:
+                fs_patterns.append("\nRecent changes:")
+                for change in recent_changes[:5]:
+                    fs_patterns.append(f"- {change}")
+
+        except Exception as e:
+            fs_patterns.append(f"Error scanning files: {e}")
+
+        return Panel("\n".join(fs_patterns), title="Emerging Patterns")
+
+    def generate_metrics_panel(self) -> Panel:
+        """Generate panel of system metrics"""
+        try:
+            cpu = psutil.cpu_percent(interval=0.1)
+            mem = psutil.virtual_memory()
+            disk = psutil.disk_usage('/')
+
+            # Get active model info
+            active_models = [
+                model for model, info in self.active_agents.items()
+                if info.get("status") == "active"
+            ]
+
+            metrics = [
+                f"CPU: {cpu}%",
+                f"Memory: {mem.percent}%",
+                f"Disk: {disk.percent}%",
+                "",
+                "Active Models:",
+            ]
+
+            for model in active_models:
+                metrics.append(f"- {model}")
+
+            # Add process info
+            python_procs = []
+            for proc in psutil.process_iter(['name', 'cpu_percent', 'memory_percent']):
+                try:
+                    if 'python' in proc.info['name'].lower():
+                        python_procs.append(proc)
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    pass
+
+            if python_procs:
+                metrics.extend([
+                    "",
+                    "Python Processes:",
+                ])
+                for proc in sorted(python_procs, key=lambda p: p.info['cpu_percent'], reverse=True)[:3]:
+                    metrics.append(f"- {proc.info['name']}: {proc.info['cpu_percent']:.1f}% CPU")
+
+            return Panel("\n".join(metrics), title="System Metrics")
+
+        except Exception as e:
+            return Panel(f"Error getting metrics: {e}", title="System Metrics")
+
+    def update_display(self):
+        """Update the display with current information"""
+        self.layout["header"].update(self.generate_header())
+        self.layout["main"]["agents"].update(self.generate_agent_table())
+        self.layout["main"]["patterns"].update(self.generate_pattern_panel())
+        self.layout["main"]["metrics"].update(self.generate_metrics_panel())
+        self.layout["footer"].update(self.generate_footer())
+
+    async def organize_by_type(self):
+        """Organize files by their extension"""
+        try:
+            # Create organization directories
+            categories = {
+                'python': ['.py'],
+                'docs': ['.md', '.txt', '.pdf', '.doc', '.docx'],
+                'data': ['.json', '.yml', '.yaml', '.csv'],
+                'configs': ['.env', '.ini', '.cfg', '.conf'],
+                'scripts': ['.sh', '.bash', '.zsh'],
+                'tests': ['_test.py', 'test_', '_spec.py'],
+                'backups': ['.bak', '.backup', '.old']
+            }
+
+            for category in categories:
+                os.makedirs(category, exist_ok=True)
+
+            # Track stats
+            moved = 0
+            organized = {}
+
+            # Move files to appropriate directories
+            for file in Path('.').rglob('*'):
+                if file.is_file():
+                    for category, extensions in categories.items():
+                        if any(str(file).endswith(ext) for ext in extensions):
+                            if category not in organized:
+                                organized[category] = 0
+                            try:
+                                target = Path(category) / file.name
+                                shutil.move(str(file), str(target))
+                                organized[category] += 1
+                                moved += 1
+                            except Exception as e:
+                                self.console.print(f"[red]Error moving {file}: {e}")
+
+            # Show results
+            self.console.print("\n[green]Files organized:")
+            for category, count in organized.items():
+                self.console.print(f"[cyan]{category}:[/cyan] {count} files")
+            self.console.print(f"\n[green]Total files moved: {moved}")
+
+        except Exception as e:
+            self.console.print(f"[red]Error organizing files: {e}")
+
+    async def cleanup_temp(self):
+        """Clean up temporary and cache files"""
+        try:
+            patterns = ['*.pyc', '*.pyo', '*.pyd', '*.so', '*.o', '*.cache',
+                       '*__pycache__*', '*.egg-info', '*.log', '.DS_Store']
+            removed = 0
+
+            for pattern in patterns:
+                for file in Path('.').rglob(pattern):
+                    try:
+                        if file.is_file():
+                            file.unlink()
+                            removed += 1
+                        elif file.is_dir():
+                            shutil.rmtree(str(file))
+                            removed += 1
+                    except Exception as e:
+                        self.console.print(f"[red]Error removing {file}: {e}")
+
+            self.console.print(f"[green]Cleaned up {removed} temporary files/directories")
+
+        except Exception as e:
+            self.console.print(f"[red]Error during cleanup: {e}")
+
+    async def show_stats(self):
+        """Show detailed file statistics"""
+        try:
+            stats = {
+                'extensions': {},
+                'largest_files': [],
+                'newest_files': [],
+                'total_size': 0,
+                'total_files': 0,
+                'total_dirs': 0
+            }
+
+            # Collect stats
+            for file in Path('.').rglob('*'):
+                if file.is_file():
+                    # Count extensions
+                    ext = file.suffix
+                    stats['extensions'][ext] = stats['extensions'].get(ext, 0) + 1
+
+                    # Track file size
+                    size = file.stat().st_size
+                    stats['total_size'] += size
+                    stats['total_files'] += 1
+
+                    # Track largest files
+                    stats['largest_files'].append((file, size))
+
+                    # Track newest files
+                    mtime = file.stat().st_mtime
+                    stats['newest_files'].append((file, mtime))
+
+                elif file.is_dir():
+                    stats['total_dirs'] += 1
+
+            # Sort and limit lists
+            stats['largest_files'].sort(key=lambda x: x[1], reverse=True)
+            stats['largest_files'] = stats['largest_files'][:5]
+            stats['newest_files'].sort(key=lambda x: x[1], reverse=True)
+            stats['newest_files'] = stats['newest_files'][:5]
+
+            # Display stats
+            self.console.print("\n[bold cyan]File Statistics:[/bold cyan]")
+            self.console.print(f"\nTotal Files: {stats['total_files']}")
+            self.console.print(f"Total Directories: {stats['total_dirs']}")
+            self.console.print(f"Total Size: {stats['total_size'] / 1024 / 1024:.2f} MB")
+
+            self.console.print("\n[bold cyan]Extensions:[/bold cyan]")
+            for ext, count in sorted(stats['extensions'].items(), key=lambda x: x[1], reverse=True):
+                self.console.print(f"{ext or 'no ext'}: {count} files")
+
+            self.console.print("\n[bold cyan]Largest Files:[/bold cyan]")
+            for file, size in stats['largest_files']:
+                self.console.print(f"{file}: {size / 1024 / 1024:.2f} MB")
+
+            self.console.print("\n[bold cyan]Most Recent Files:[/bold cyan]")
+            for file, mtime in stats['newest_files']:
+                self.console.print(f"{file}: {datetime.fromtimestamp(mtime)}")
+
+        except Exception as e:
+            self.console.print(f"[red]Error getting stats: {e}")
+
+    async def find_duplicates(self):
+        """Find duplicate files based on content hash"""
+        try:
+            duplicates = {}
+            processed = 0
+
+            self.console.print("[yellow]Scanning for duplicates (this may take a while)...")
+
+            for file in Path('.').rglob('*'):
+                if file.is_file():
+                    processed += 1
+                    if processed % 100 == 0:
+                        self.console.print(f"Processed {processed} files...")
+
+                    # Calculate file hash
+                    file_hash = self.get_file_hash(file)
+                    if file_hash:
+                        if file_hash in duplicates:
+                            duplicates[file_hash].append(file)
+                        else:
+                            duplicates[file_hash] = [file]
+
+            # Show only actual duplicates
+            real_dupes = {k: v for k, v in duplicates.items() if len(v) > 1}
+
+            if real_dupes:
+                self.console.print("\n[bold red]Found Duplicate Files:[/bold red]")
+                for hash_val, files in real_dupes.items():
+                    self.console.print(f"\n[cyan]Hash: {hash_val}[/cyan]")
+                    for file in files:
+                        self.console.print(f"  {file}")
+            else:
+                self.console.print("[green]No duplicate files found!")
+
+        except Exception as e:
+            self.console.print(f"[red]Error finding duplicates: {e}")
+
+    def get_file_hash(self, file_path: Path, block_size: int = 65536) -> str:
+        """Calculate SHA256 hash of a file"""
+        import hashlib
+        try:
+            sha256 = hashlib.sha256()
+            with open(file_path, 'rb') as f:
+                for block in iter(lambda: f.read(block_size), b''):
+                    sha256.update(block)
+            return sha256.hexdigest()
+        except Exception as e:
+            self.console.print(f"[red]Error hashing {file_path}: {e}")
+            return None
+
+    async def show_help(self):
+        """Show detailed help information"""
+        self.console.print("\n[bold cyan]Available Commands:[/bold cyan]")
+        for key, (desc, _) in self.commands.items():
+            self.console.print(f"[green]{key}[/green]: {desc}")
+
+    async def quit(self):
+        """Quit the monitor"""
+        self.running = False
+
+    async def handle_input(self):
+        """Handle user input"""
+        while self.running:
+            try:
+                command = await asyncio.get_event_loop().run_in_executor(
+                    None, lambda: Prompt.ask("\nEnter command").lower()
+                )
+
+                if command in self.commands:
+                    await self.commands[command][1]()
+                else:
+                    self.console.print("[red]Invalid command. Press 'h' for help.")
+
+            except Exception as e:
+                self.console.print(f"[red]Error handling command: {e}")
+
+    async def monitor_agents(self):
+        """Monitor agent activities with real status checks"""
+        while self.running:
+            try:
+                async with aiohttp.ClientSession() as session:
+                    for model in ["codellama:13b", "qwq", "mistral", "codegeex4"]:
+                        try:
+                            # Check if model is loaded and responsive
+                            async with session.post(
+                                "http://localhost:11434/api/show",
+                                json={"name": model},
+                                timeout=2
+                            ) as resp:
+                                if resp.status == 200:
+                                    self.active_agents[model] = {
+                                        "status": "active",
+                                        "current_task": "ready",
+                                        "progress": 100
+                                    }
+                                else:
+                                    self.active_agents[model] = {
+                                        "status": "error",
+                                        "current_task": "none",
+                                        "progress": 0
+                                    }
+                        except Exception:
+                            self.active_agents[model] = {
+                                "status": "offline",
+                                "current_task": "none",
+                                "progress": 0
+                            }
+
+            except Exception as e:
+                logging.error(f"Agent monitoring error: {e}")
+            await asyncio.sleep(1)
+
+    async def monitor_patterns(self):
+        """Monitor real file system patterns"""
+        last_scan = {}
+        while self.running:
+            try:
+                workspace = Path.cwd()
+                current_scan = {}
+
+                # Scan workspace
+                for f in workspace.rglob("*"):
+                    if f.is_file():
+                        try:
+                            current_scan[f] = {
+                                "mtime": f.stat().st_mtime,
+                                "size": f.stat().st_size
+                            }
+                        except Exception:
+                            continue
+
+                # Detect changes
+                if last_scan:
+                    changes = []
+                    for f, stats in current_scan.items():
+                        if f not in last_scan:
+                            changes.append(f"New file: {f.relative_to(workspace)}")
+                        elif stats != last_scan[f]:
+                            changes.append(f"Modified: {f.relative_to(workspace)}")
+
+                    for f in last_scan:
+                        if f not in current_scan:
+                            changes.append(f"Deleted: {f.relative_to(workspace)}")
+
+                    if changes:
+                        self.patterns.extend(changes)
+                        # Keep last 100 patterns
+                        self.patterns = self.patterns[-100:]
+
+                last_scan = current_scan
+
+            except Exception as e:
+                logging.error(f"Pattern monitoring error: {e}")
+            await asyncio.sleep(5)
+
+    async def process_patterns(self):
+        """Process emerging patterns using AI models"""
+        try:
+            self.console.print("[yellow]Processing patterns with AI models...")
+
+            # Get available models
+            available_models = self.gateway._get_available_models()
+
+            # Process patterns through each available model
+            for model in available_models:
+                result = await self.gateway.process_pattern({
+                    "type": "system_pattern",
+                    "data": self.patterns,
+                    "context": {
+                        "workspace": str(Path.cwd()),
+                        "timestamp": datetime.now().isoformat()
+                    }
+                })
+
+                if result:
+                    self.patterns.extend(result.get("discovered_patterns", []))
+                    self.console.print(f"[green]Processed patterns with {model}")
+
+            self.console.print("[green]Pattern processing complete!")
+
+        except Exception as e:
+            self.console.print(f"[red]Error processing patterns: {e}")
+
+    async def analyze_system(self):
+        """Perform deep system analysis using AI with orchestration"""
+        try:
+            self.console.print("[yellow]Initiating deep system analysis with safety protocols...")
+
+            # Gather comprehensive system state
+            state = {
+                "workspace": {
+                    "structure": self._analyze_workspace_structure(),
+                    "patterns": self._detect_code_patterns(),
+                    "dependencies": self._analyze_dependencies(),
+                    "recent_changes": self.patterns[-50:] if self.patterns else []
+                },
+                "resources": {
+                    "cpu_history": psutil.cpu_percent(interval=1, percpu=True),
+                    "memory": psutil.virtual_memory()._asdict(),
+                    "disk": psutil.disk_usage('/')._asdict(),
+                    "network": psutil.net_io_counters()._asdict()
+                },
+                "agents": {
+                    name: {**info, "capabilities": self.gateway_config.providers["ollama"]["models"][i]["capabilities"]}
+                    for i, (name, info) in enumerate(self.active_agents.items())
+                }
+            }
+
+            # Orchestrated analysis with safety checks
+            async with aiohttp.ClientSession() as session:
+                self.console.print("[yellow]1. High-level pattern analysis with qwq...")
+                pattern_analysis = await self._analyze_with_model(session, "qwq",
+                    "Analyze workspace patterns and identify strategic improvements. Focus on safety and documentation.", state)
+
+                if pattern_analysis:
+                    # Update state with pattern insights
+                    state["pattern_insights"] = pattern_analysis
+
+                    self.console.print("[yellow]2. Code structure analysis with codellama...")
+                    code_analysis = await self._analyze_with_model(session, "codellama:13b",
+                        "Analyze code structure considering the identified patterns. Focus on technical debt and improvements.", state)
+
+                    if code_analysis:
+                        # Update state with code insights
+                        state["code_insights"] = code_analysis
+
+                        self.console.print("[yellow]3. Resource optimization with mistral...")
+                        resource_analysis = await self._analyze_with_model(session, "mistral",
+                            "Analyze system resources considering the identified patterns and code structure.", state)
+
+                        if resource_analysis:
+                            # Update state with resource insights
+                            state["resource_insights"] = resource_analysis
+
+                            self.console.print("[yellow]4. Implementation planning with codegeex4...")
+                            implementation_plan = await self._analyze_with_model(session, "codegeex4",
+                                "Create a safe implementation plan considering all previous analyses.", state)
+
+            # Present orchestrated insights with safety summaries
+            self.console.print("\n[bold cyan]🛡️ AI System Analysis with Safety Protocols[/bold cyan]")
+
+            if pattern_analysis:
+                self.console.print("\n[bold green]📊 Strategic Patterns & Safety:[/bold green]")
+                self.console.print(pattern_analysis)
+
+            if code_analysis:
+                self.console.print("\n[bold yellow]💻 Code Insights & Protections:[/bold yellow]")
+                self.console.print(code_analysis)
+
+            if resource_analysis:
+                self.console.print("\n[bold magenta]🔧 Resource Optimization & Stability:[/bold magenta]")
+                self.console.print(resource_analysis)
+
+            if implementation_plan:
+                self.console.print("\n[bold blue]📝 Implementation Plan & Safeguards:[/bold blue]")
+                self.console.print(implementation_plan)
+
+        except Exception as e:
+            self.console.print(f"[red]Error during safe analysis: {e}")
+
+    async def _analyze_with_model(self, session: aiohttp.ClientSession, model: str, prompt: str, state: dict) -> str:
+        """Get analysis from a specific model with safety guardrails"""
+        try:
+            # Safety rules for each model
+            model_rules = {
+                "qwq": {
+                    "role": "You are a high-level system architect. You ONLY analyze patterns and suggest improvements. You NEVER modify anything directly.",
+                    "constraints": [
+                        "NEVER suggest deleting files without explicit confirmation",
+                        "ALWAYS provide reasoning for each suggestion",
+                        "ONLY suggest changes that preserve existing functionality",
+                        "DOCUMENT every pattern you identify"
+                    ]
+                },
+                "codellama:13b": {
+                    "role": "You are a code analyst. You ONLY analyze code structure and patterns. You NEVER execute code.",
+                    "constraints": [
+                        "NEVER modify production code without review",
+                        "ALWAYS explain the impact of suggested changes",
+                        "DOCUMENT all code patterns exhaustively",
+                        "IDENTIFY potential risks in changes"
+                    ]
+                },
+                "mistral": {
+                    "role": "You are a system optimizer. You ONLY suggest resource optimizations. You NEVER modify system state.",
+                    "constraints": [
+                        "NEVER suggest changes that could cause downtime",
+                        "ALWAYS maintain system stability",
+                        "DOCUMENT performance implications",
+                        "VERIFY resource availability before changes"
+                    ]
+                },
+                "codegeex4": {
+                    "role": "You are an implementation planner. You ONLY create detailed plans. You NEVER execute them.",
+                    "constraints": [
+                        "NEVER execute changes without approval",
+                        "ALWAYS include rollback steps",
+                        "DOCUMENT each step exhaustively",
+                        "VERIFY dependencies before suggesting changes"
+                    ]
+                }
+            }
+
+            # Build safe prompt with rules and constraints
+            safe_prompt = f"""
+{model_rules[model]['role']}
+
+STRICT CONSTRAINTS:
+{chr(10).join('- ' + c for c in model_rules[model]['constraints'])}
+
+ADDITIONAL SAFETY RULES:
+- Document EVERYTHING you analyze
+- Explain ALL potential risks
+- Suggest ONLY reversible changes
+- Preserve ALL valuable data
+- Compare and deduplicate before changes
+- Create backup strategies for suggestions
+
+YOUR TASK:
+{prompt}
+
+WORKSPACE CONTEXT:
+{json.dumps(state, indent=2)}
+
+Provide your analysis with the following structure:
+1. Documentation of what you analyzed
+2. Patterns and insights found
+3. Potential risks and mitigations
+4. Suggested improvements (if any)
+5. Required safety measures
+"""
+
+            async with session.post(
+                "http://localhost:11434/api/generate",
+                json={
+                    "model": model,
+                    "prompt": safe_prompt,
+                    "stream": False
+                }
+            ) as resp:
+                if resp.status == 200:
+                    result = await resp.json()
+                    return result.get("response", "")
+                return None
+
+        except Exception as e:
+            logging.error(f"Analysis with {model} failed: {e}")
+            return None
+
+    def _analyze_workspace_structure(self) -> dict:
+        """Analyze workspace directory structure"""
+        structure = {}
+        try:
+            workspace = Path.cwd()
+            for path in workspace.rglob("*"):
+                if path.is_file():
+                    relative = path.relative_to(workspace)
+                    parts = relative.parts
+                    current = structure
+                    for part in parts[:-1]:
+                        current = current.setdefault(part, {})
+                    current[parts[-1]] = path.stat().st_size
+        except Exception as e:
+            logging.error(f"Structure analysis failed: {e}")
+        return structure
+
+    def _detect_code_patterns(self) -> list:
+        """Detect patterns in code files"""
+        patterns = []
+        try:
+            workspace = Path.cwd()
+            for py_file in workspace.rglob("*.py"):
+                with open(py_file) as f:
+                    content = f.read()
+                    # Add basic code patterns
+                    if "class" in content:
+                        patterns.append({"type": "class", "file": str(py_file)})
+                    if "async" in content:
+                        patterns.append({"type": "async", "file": str(py_file)})
+                    if "import" in content:
+                        patterns.append({"type": "import", "file": str(py_file)})
+        except Exception as e:
+            logging.error(f"Pattern detection failed: {e}")
+        return patterns
+
+    def _analyze_dependencies(self) -> dict:
+        """Analyze project dependencies"""
+        deps = {}
+        try:
+            # Check Python dependencies
+            if Path("requirements.txt").exists():
+                with open("requirements.txt") as f:
+                    deps["python"] = f.read().splitlines()
+
+            # Check package.json if it exists
+            if Path("package.json").exists():
+                with open("package.json") as f:
+                    deps["node"] = json.load(f).get("dependencies", {})
+
+        except Exception as e:
+            logging.error(f"Dependency analysis failed: {e}")
+        return deps
+
+    async def start(self):
+        """Start the monitoring system with AI integration"""
+        # Initialize AI gateway
+        await self.gateway.initialize()
+
+        # Start background tasks
+        agent_task = asyncio.create_task(self.monitor_agents())
+        pattern_task = asyncio.create_task(self.monitor_patterns())
+        input_task = asyncio.create_task(self.handle_input())
+
+        try:
+            with Live(self.layout, refresh_per_second=1, screen=False):
+                while self.running:
+                    self.update_display()
+                    await asyncio.sleep(1)
+
+        finally:
+            # Cleanup tasks
+            agent_task.cancel()
+            pattern_task.cancel()
+            input_task.cancel()
+            try:
+                await asyncio.gather(agent_task, pattern_task, input_task)
+            except asyncio.CancelledError:
+                pass
+
+async def main():
+    monitor = ExcavationMonitor()
+    await monitor.start()
+
+if __name__ == "__main__":
+    asyncio.run(main())

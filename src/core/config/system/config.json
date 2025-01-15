@@ -1,0 +1,89 @@
+{
+    "components": {
+        "store": {
+            "enabled": true,
+            "parallel": true,
+            "dependencies": [],
+            "health_check": "health_check",
+            "startup_timeout": 30,
+            "retry_count": 3
+        },
+        "model_gateway": {
+            "enabled": true,
+            "parallel": true,
+            "dependencies": ["store"],
+            "health_check": "health_check",
+            "startup_timeout": 60,
+            "retry_count": 3
+        },
+        "credential_manager": {
+            "enabled": true,
+            "parallel": false,
+            "dependencies": [],
+            "health_check": "health_check",
+            "startup_timeout": 30,
+            "retry_count": 3
+        },
+        "health_monitor": {
+            "enabled": true,
+            "parallel": true,
+            "dependencies": [],
+            "health_check": "health_check",
+            "startup_timeout": 30,
+            "retry_count": 3
+        },
+        "platform_manager": {
+            "enabled": true,
+            "parallel": false,
+            "dependencies": [],
+            "health_check": "health_check",
+            "startup_timeout": 30,
+            "retry_count": 3
+        }
+    },
+    "system": {
+        "workspace_root": ".",
+        "config_dir": ".config",
+        "parallel_execution": true,
+        "health_check_interval": 30,
+        "metrics_port": 9090
+    },
+    "logging": {
+        "level": "INFO",
+        "format": "%(asctime)s [%(levelname)s] %(message)s",
+        "file": ".config/system/logs/system.log"
+    },
+    "security": {
+        "encryption_enabled": true,
+        "key_rotation_interval": 86400,
+        "audit_logging": true
+    },
+    "ai": {
+        "providers": {
+            "ollama": {
+                "endpoint": "http://localhost:11434",
+                "models": ["codellama", "llama2"]
+            },
+            "lm_studio": {
+                "endpoint": "http://localhost:1234",
+                "models": ["mixtral"]
+            },
+            "tgpt": {
+                "endpoint": "http://localhost:4891",
+                "models": ["gpt4"]
+            }
+        },
+        "default_provider": "ollama",
+        "default_model": "codellama"
+    },
+    "monitoring": {
+        "metrics_enabled": true,
+        "metrics_port": 9090,
+        "health_check_interval": 30,
+        "alert_thresholds": {
+            "memory_usage": 90,
+            "cpu_usage": 80,
+            "disk_usage": 85
+        }
+    }
+}

@@ -1,0 +1,33 @@
+[github]
+username = ""
+token = ""
+default_repo = ""
+
+[commit]
+types = [
+    "feat",
+    "fix",
+    "docs",
+    "style",
+    "refactor",
+    "test",
+    "chore"
+]
+scopes = [
+    "core",
+    "ui",
+    "docs",
+    "tests",
+    "config"
+]
+
+[ai]
+enhance_commits = true
+suggest_branches = true
+review_code = true
+resolve_conflicts = true
+
+[security]
+sign_webhooks = true
+verify_commits = true
+scan_secrets = true

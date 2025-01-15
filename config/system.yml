@@ -1,0 +1,6 @@
+version: '0.1.0'
+max_parallel_tasks: 8
+memory_limit_gb: 32.0
+snapshot_interval: 60
+log_level: 'INFO'
+metrics_enabled: true

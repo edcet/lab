@@ -1,0 +1,97 @@
+# Development Environment Configuration
+# ================================
+# This file is the single source of truth for your development environment.
+# It manages tools, dependencies, and environment variables consistently.
+#
+# IMPORTANT:
+# - Use `mise install` to set up tools
+# - Use `mise shell` or `mise activate` to enter the environment
+# - Do NOT manually create virtual environments or install tools outside mise
+
+[tools]
+# Core development tools
+# ---------------------
+# These versions are locked to ensure consistency.
+# To upgrade, update the version here and run `mise install`.
+python = "3.12.8"  # Managed by mise/pkgx - do not use `python -m venv`
+node = "20.11.0"   # LTS version for stability
+go = "1.21.5"      # Stable Go version
+rust = "stable"    # Latest stable Rust
+
+[env]
+# Environment Configuration
+# -----------------------
+# XDG Base Directory Specification
+# These ensure consistent tool configuration locations
+XDG_CONFIG_HOME = { value = "~/.config", relative = false }
+XDG_CACHE_HOME = { value = "~/.cache", relative = false }
+XDG_DATA_HOME = { value = "~/.local/share", relative = false }
+XDG_STATE_HOME = { value = "~/.local/state", relative = false }
+
+# Project Configuration
+# -------------------
+# PYTHONPATH is relative to project root
+PYTHONPATH = { value = "src", relative = true }
+
+# Virtual Environment
+# -----------------
+# This is managed by mise - do not create manual virtual environments
+VIRTUAL_ENV = { value = ".venv", relative = true }
+
+# Tool Selection
+# ------------
+# Ensure mise-managed tools take precedence
+PATH = { prepend = [".venv/bin", "node_modules/.bin"], relative = true }
+
+# Prevent accidental tool mixing
+MISE_PREVENT_BREW_PYTHON = { value = "1" }  # Prevent Homebrew Python use
+MISE_PREVENT_SYSTEM_PYTHON = { value = "1" }  # Prevent system Python use
+MISE_WARN_ON_MANUAL_VENV = { value = "1" }  # Warn on manual venv creation
+
+[tasks]
+# Development Tasks
+# ---------------
+# Use these tasks instead of running commands directly
+# Example: `mise run setup` instead of manual tool installation
+
+# Initial setup
+setup = [
+    "mise install",  # Install all tools
+    "mise exec -- pip install -e '.[dev]'",  # Install project dependencies
+    "mise exec -- pre-commit install",  # Set up git hooks
+]
+
+# Update dependencies
+update = [
+    "mise upgrade",  # Update tool versions
+    "mise exec -- pip install --upgrade -e '.[dev]'",  # Update dependencies
+    "mise exec -- pre-commit autoupdate",  # Update hooks
+]
+
+# Code quality
+lint = "mise exec -- pre-commit run --all-files"
+test = "mise exec -- pytest"
+
+# Environment cleanup
+clean = [
+    "# Cleaning development environment",
+    "rm -rf .venv",
+    "rm -rf node_modules",
+    "rm -rf dist",
+    "rm -rf *.egg-info",
+    "find . -type d -name __pycache__ -exec rm -rf {} +",
+    "find . -type f -name '*.pyc' -delete",
+    "# Run 'mise install' after cleaning to rebuild environment"
+]
+
+# Help task
+help = [
+    "echo 'Development Environment Guide:'",
+    "echo '1. Initial setup:    mise run setup'",
+    "echo '2. Update tools:     mise run update'",
+    "echo '3. Run tests:        mise run test'",
+    "echo '4. Lint code:        mise run lint'",
+    "echo '5. Clean env:        mise run clean'",
+    "echo ''",
+    "echo 'For more information, see README.md'",
+]

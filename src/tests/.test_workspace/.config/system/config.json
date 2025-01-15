@@ -1,0 +1,38 @@
+{
+  "components": {
+    "store": {
+      "enabled": true,
+      "parallel": true,
+      "batch_size": 100,
+      "cache_size": 1000,
+      "db_path": ".test_workspace/store.db"
+    },
+    "model_gateway": {
+      "enabled": true,
+      "parallel": true,
+      "max_concurrent": 10,
+      "providers": {
+        "ollama": {
+          "endpoint": "http://localhost:11434"
+        },
+        "lm_studio": {
+          "endpoint": "http://localhost:1234"
+        },
+        "tgpt": {
+          "endpoint": "http://localhost:4891"
+        }
+      }
+    },
+    "health_monitor": {
+      "enabled": true,
+      "check_interval": 30,
+      "metrics_port": 9090
+    }
+  },
+  "security": {
+    "encryption": {
+      "enabled": true,
+      "key_rotation_interval": 86400
+    }
+  }
+}

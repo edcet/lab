@@ -1,0 +1,96 @@
+{
+	"system": {
+		"mode": "development",
+		"state_tracking": true,
+		"parallel_execution": true,
+		"auto_recovery": true,
+		"workspace_root": "/Users/him/lab"
+	},
+	"models": [
+		{
+			"name": "lmstudio",
+			"endpoint": "http://localhost:1234",
+			"capabilities": ["routing", "reasoning"],
+			"timeout": 30
+		},
+		{
+			"name": "tgpt",
+			"endpoint": "http://localhost:4891",
+			"capabilities": ["shell", "commands"],
+			"timeout": 15
+		},
+		{
+			"name": "openinterpreter",
+			"endpoint": "http://localhost:8080",
+			"capabilities": ["execution", "code"],
+			"timeout": 60
+		}
+	],
+	"storage": {
+		"type": "local",
+		"path": "data",
+		"backup_enabled": true,
+		"backup_interval": 3600,
+		"max_backups": 5
+	},
+	"analyzers": {
+		"pattern_mining": true,
+		"state_analysis": true,
+		"code_quality": true,
+		"dependency_tracking": true
+	},
+	"integration": {
+		"timeout": 30,
+		"retry_attempts": 3,
+		"backoff_factor": 1.5,
+		"health_check_interval": 60
+	},
+	"monitoring": {
+		"enabled": true,
+		"log_level": "INFO",
+		"metrics_enabled": true,
+		"trace_enabled": true,
+		"log_rotation": {
+			"max_size": "100M",
+			"backup_count": 5
+		}
+	},
+	"emergence": {
+		"pattern_detection": true,
+		"adaptive_routing": true,
+		"learning_enabled": true,
+		"feedback_loop": true
+	},
+	"security": {
+		"local_only": true,
+		"verify_endpoints": true,
+		"sanitize_input": true,
+		"rate_limiting": {
+			"enabled": true,
+			"max_requests": 100,
+			"window_seconds": 60
+		}
+	},
+	"optimization": {
+		"parallel_tasks": true,
+		"resource_monitoring": true,
+		"auto_scaling": true,
+		"cache_enabled": true,
+		"cache_ttl": 300
+	},
+	"development": {
+		"debug_mode": true,
+		"test_mode": false,
+		"profiling": true,
+		"hot_reload": true,
+		"strict_mode": true
+	},
+	"paths": {
+		"workspace": "/Users/him/lab",
+		"source": "src",
+		"config": "config",
+		"data": "data",
+		"logs": "logs",
+		"temp": "temp"
+	}
+}

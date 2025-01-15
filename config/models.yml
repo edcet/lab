@@ -1,0 +1,17 @@
+janai-large:
+  name: "janai-large"
+  endpoint: "http://localhost:1337"
+  capabilities: ["text-generation", "code-completion"]
+  max_tokens: 4096
+  temperature: 0.7
+  batch_size: 32
+  priority: 1
+
+janai-reasoning:
+  name: "janai-reasoning"
+  endpoint: "http://localhost:1337"
+  capabilities: ["reasoning", "analysis"]
+  max_tokens: 2048
+  temperature: 0.4
+  batch_size: 16
+  priority: 2

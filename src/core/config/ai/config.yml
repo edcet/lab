@@ -1,0 +1,129 @@
+# AI Gateway Configuration
+
+# Provider configurations
+providers:
+  ollama:
+    endpoint: http://localhost:11434
+    models:
+      - name: codellama
+        capabilities:
+          - code_generation
+          - code_analysis
+          - pattern_detection
+        max_tokens: 4096
+        temperature: 0.7
+      - name: llama2
+        capabilities:
+          - text_generation
+          - pattern_analysis
+          - context_understanding
+        max_tokens: 4096
+        temperature: 0.8
+
+  lm_studio:
+    endpoint: http://localhost:1234
+    models:
+      - name: mixtral
+        capabilities:
+          - code_generation
+          - text_generation
+          - pattern_analysis
+          - context_understanding
+        max_tokens: 8192
+        temperature: 0.7
+
+  tgpt:
+    endpoint: http://localhost:4891
+    models:
+      - name: gpt4
+        capabilities:
+          - code_generation
+          - code_analysis
+          - pattern_detection
+          - text_generation
+          - context_understanding
+        max_tokens: 8192
+        temperature: 0.7
+
+# Routing configuration
+routing:
+  strategies:
+    - name: capability_based
+      enabled: true
+      priority: 1
+    - name: load_balanced
+      enabled: true
+      priority: 2
+    - name: fallback
+      enabled: true
+      priority: 3
+
+  rules:
+    - capability: code_generation
+      preferred_models:
+        - provider: ollama
+          model: codellama
+        - provider: tgpt
+          model: gpt4
+
+    - capability: pattern_detection
+      preferred_models:
+        - provider: ollama
+          model: codellama
+        - provider: lm_studio
+          model: mixtral
+
+    - capability: text_generation
+      preferred_models:
+        - provider: lm_studio
+          model: mixtral
+        - provider: tgpt
+          model: gpt4
+
+# Health check configuration
+health_check:
+  interval: 30
+  timeout: 5
+  retries: 3
+  metrics:
+    - latency
+    - success_rate
+    - error_rate
+    - request_count
+
+# Load balancing configuration
+load_balancing:
+  strategy: weighted_round_robin
+  health_weight: 0.4
+  latency_weight: 0.3
+  error_rate_weight: 0.3
+  max_retries: 3
+
+# Rate limiting configuration
+rate_limiting:
+  enabled: true
+  default_limit: 100
+  window_size: 60
+  per_model_limits:
+    gpt4: 50
+
+# Caching configuration
+caching:
+  enabled: true
+  ttl: 3600
+  max_size: 1000
+
+# Security configuration
+security:
+  request_validation: true
+  response_filtering: true
+  sensitive_data_detection: true
+
+# Metrics configuration
+metrics:
+  enabled: true
+  collection_interval: 10
+  retention_period: 86400
+  exporters:
+    - type: prometheus
+      port: 9090

@@ -1,0 +1,15 @@
+interpreter:
+  name: "interpreter"
+  capabilities: ["code-execution", "system-interaction"]
+  auto_approve: false
+  max_retries: 3
+  timeout: 300
+  priority: 1
+
+tgpt:
+  name: "tgpt"
+  capabilities: ["terminal-interaction", "command-generation"]
+  auto_approve: false
+  max_retries: 2
+  timeout: 120
+  priority: 2
