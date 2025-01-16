@@ -9,6 +9,7 @@ import numpy as np
 from typing import Dict, Any
 import json
 import logging
+from rich.console import Console
 
 from ..core.compute.engine import ComputeEngine, ComputeConfig
 from ..core.memory.manager import MemoryManager
@@ -18,6 +19,10 @@ from ..core.process.orchestrator import (
     ProcessStats
 )
 
+# Import neural commands
+from nfx.cli.neural_commands import neural
+from nfx.core.neural.cli_commands import llm
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -25,6 +30,7 @@ logging.basicConfig(
 )
 
 logger = logging.getLogger('nfx.cli')
+console = Console()
 
 class CLI:
     """NFX CLI handler"""
@@ -205,6 +211,10 @@ def connect(from_process: str, to_process: str):
     except Exception as e:
         logger.error(f"Failed to connect processes: {e}")
         raise click.ClickException(str(e))
+
+# Register command groups
+cli.add_command(neural)
+cli.add_command(llm)
 
 if __name__ == '__main__':
     cli()

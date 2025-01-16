@@ -1,0 +1,48 @@
+{
+	"folders": [
+		{
+			"name": "lab",
+			"path": "."
+		}
+	],
+	"settings": {
+		"editor.formatOnSave": true,
+		"editor.formatOnPaste": true,
+		"editor.rulers": [
+			100
+		],
+		"editor.codeActionsOnSave": {
+			"source.fixAll": "explicit",
+			"source.organizeImports": "explicit"
+		},
+		"editor.bracketPairColorization.enabled": true,
+		"editor.guides.bracketPairs": true,
+		"editor.suggestSelection": "first",
+		"editor.acceptSuggestionOnEnter": "on",
+		"files.trimTrailingWhitespace": true,
+		"files.insertFinalNewline": true,
+		"files.trimFinalNewlines": true,
+		"files.associations": {
+			"*.toml": "toml",
+			"*.env": "dotenv",
+			"requirements*.txt": "pip-requirements"
+		},
+		"[python]": {
+			"editor.defaultFormatter": "ms-python.black-formatter",
+			"editor.formatOnSave": true,
+			"editor.codeActionsOnSave": {
+				"source.fixAll": "explicit",
+				"source.organizeImports": "explicit"
+			}
+		},
+		"git.autofetch": true,
+		"git.enableSmartCommit": true,
+		"git.confirmSync": false,
+		"git.enableCommitSigning": true,
+		"terminal.integrated.defaultProfile.osx": "zsh",
+		"terminal.integrated.env.osx": {
+			"PYTHONPATH": "${workspaceFolder}/src"
+		},
+		"extensions.ignoreRecommendations": false
+	}
+}

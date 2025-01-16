@@ -1,8 +1,53 @@
 #!/usr/bin/env zsh
 
-# Git Autobuilder: Intelligent git operations with AI-powered automation
-# Author: VoidEditor
-# License: MIT
+# Git Autobuilder: Automated Git Operations
+
+# State tracking
+typeset -g GIT_AUTOBUILDER_LOADED=0
+[[ "$GIT_AUTOBUILDER_LOADED" == "1" ]] && return 0
+
+# Requirements
+command -v git >/dev/null 2>&1 || {
+    print -P "%F{red}Error: git command not found%f"
+    return 1
+}
+
+# Core functions
+function git_commit() {
+    local msg="$1"
+    git add -A && git commit -m "$msg"
+}
+
+function git_push() {
+    local branch="$(git rev-parse --abbrev-ref HEAD)"
+    git push origin "$branch"
+}
+
+function git_pr() {
+    local title="$1"
+    local body="$2"
+    gh pr create --title "$title" ${body:+--body "$body"}
+}
+
+function git_init() {
+    local name="${1:-${PWD:t}}"
+    git init && git add . && git commit -m "init: $name"
+}
+
+# Register commands
+alias gac='git_commit'
+alias gap='git_push'
+alias gapr='git_pr'
+alias gwi='git_init'
+
+GIT_AUTOBUILDER_LOADED=1
+
+function __ensure_command {
+    command -v "$1" >/dev/null 2>&1
+}
+
+# Initialize state
+typeset -gA GIT_AUTOBUILDER_STATE=()
 
 # Enable Zsh-specific options
 setopt EXTENDED_GLOB
@@ -95,34 +140,35 @@ function __generate_commit_message() {
         __handle_error 4 "Failed to get changed files" "commit_message"
         rm -f "$tmpfile"
         return 4
-    }
+    fi
 
-    while read -r file; do
-        [[ -n "$file" ]] && files+=("$file")
+    while IFS= read -r file; do
+        [[ -n "$file" ]] || continue
+        files+=("$file")
     done < "$tmpfile"
     rm -f "$tmpfile"
 
     if [[ ${#files[@]} -eq 0 ]]; then
         __handle_error 5 "No files staged for commit" "commit_message"
         return 5
-    }
+    fi
 
     if [[ -z "${message}" ]]; then
         local type="chore"
         local scope="misc"
-
+        
         # Join files with spaces for pattern matching
         local file_list="${files[*]}"
         if [[ "$file_list" =~ \.(md|rst)$ ]]; then
             type="docs"
         elif [[ "$file_list" =~ \.(py|js|ts|go|rs)$ ]]; then
             type="feat"
-        elif [[ "$file_list" =~ _test\.|test_|\.(spec|test)\. ]]; then
+        elif [[ "$file_list" =~ (test_|_test|\.(spec|test))\. ]]; then
             type="test"
         elif [[ "$file_list" =~ \.(css|scss|less)$ ]]; then
             type="style"
         fi
-
+        
         message="${type}(${scope}): update ${#files} files"
     fi
 
@@ -138,23 +184,22 @@ function __init_workspace() {
     if [[ -d "${path}/.git" ]]; then
         __handle_error 6 "Git repository already exists" "workspace_init"
         return 6
-    }
+    fi
 
     if ! mkdir -p "${path}"; then
         __handle_error 7 "Failed to create directory" "workspace_init"
         return 7
-    }
+    fi
 
     if ! cd "${path}"; then
         __handle_error 8 "Failed to change directory" "workspace_init"
         return 8
-    }
+    fi
 
     if ! git init; then
         __handle_error 9 "Failed to initialize git repository" "workspace_init"
         return 9
-    }
-
+    fi
     case "${template}" in
         python)
             cat > pyproject.toml << 'EOL' || __handle_error 10 "Failed to create pyproject.toml" "workspace_init"
@@ -186,32 +231,42 @@ function __scan_workspace() {
     local depth="${2:-3}"
     local repos=()
     local tmpfile=$(mktemp)
-
+    local repo
+    
+    # Find git repositories
     if ! find "${path}" -maxdepth "${depth}" -name .git -type d -exec dirname {} \; > "$tmpfile"; then
         __handle_error 12 "Failed to scan workspace" "workspace_scan"
         rm -f "$tmpfile"
         return 12
-    }
-
-    while read -r repo; do
-        [[ -n "$repo" ]] && repos+=("$repo")
+    fi
+    
+    # Read repositories
+    while IFS= read -r repo; do
+        [[ -n "$repo" ]] || continue
+        repos+=("$repo")
     done < "$tmpfile"
     rm -f "$tmpfile"
-
+    
+    # Check results
     if [[ ${#repos[@]} -eq 0 ]]; then
         __log "WARN" "No git repositories found in ${path}"
         return 0
-    }
-
-    for repo in "${repos[@]}"; do
-        if ! cd "${repo}"; then
-            __log "WARN" "Failed to access repository: ${repo}"
+    fi
+    
+    # Process repositories
+    local current_repo
+    for current_repo in "${repos[@]}"; do
+        if ! cd "${current_repo}"; then
+            __log "ERROR" "Failed to access repository: ${current_repo}"
             continue
         fi
+        
+        # Process repository
+        __log "INFO" "Processing repository: ${current_repo}"
         local remote=$(git remote get-url origin 2>/dev/null)
-        echo "Found repository: ${repo} (${remote:-no remote})"
+        echo "Found repository: ${current_repo} (${remote:-no remote})"
     done
-
+    
     return 0
 }
 
@@ -222,23 +277,23 @@ function __monitor_workspace() {
 
     if ! __ensure_command "git"; then
         return 3
-    }
+    fi
 
     __log "INFO" "Starting workspace monitor for ${path}"
 
     while true; do
         local repos=()
         local tmpfile=$(mktemp)
-
         if ! find "${path}" -name .git -type d -exec dirname {} \; > "$tmpfile"; then
             __handle_error 13 "Failed to scan workspace" "workspace_monitor"
             rm -f "$tmpfile"
             sleep "${interval}"
             continue
-        }
+        fi
 
-        while read -r repo; do
-            [[ -n "$repo" ]] && repos+=("$repo")
+        while IFS= read -r repo; do
+            [[ -n "$repo" ]] || continue
+            repos+=("$repo")
         done < "$tmpfile"
         rm -f "$tmpfile"
 
@@ -372,15 +427,5 @@ function __auto_pr() {
 
     __log "INFO" "Created PR: ${description}"
     return 0
-}
-
-# Export functions
-typeset -fx __auto_commit
-typeset -fx __auto_push
-typeset -fx __auto_pr
-typeset -fx __init_workspace
-typeset -fx __scan_workspace
-typeset -fx __monitor_workspace
-
-# Initialize
-__log "INFO" "Git Autobuilder initialized"
+# Register functions
+autoload -Uz commit_message workspace_init workspace_scan workspace_monitor

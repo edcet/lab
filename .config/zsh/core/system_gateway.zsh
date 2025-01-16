@@ -3,7 +3,38 @@
 # System Gateway: Human-Centric Resource Management
 # Designed for clarity, control, and growth
 
-# Enable extended globbing for pattern matching
+# Initialize critical paths first
+: ${XDG_CONFIG_HOME:="$HOME/.config"}
+: ${XDG_CACHE_HOME:="$HOME/.cache"}
+: ${XDG_DATA_HOME:="$HOME/.local/share"}
+: ${XDG_STATE_HOME:="$HOME/.local/state"}
+
+# State file location must be set before any function uses it
+typeset -g ENVMGR_STATE_FILE="${XDG_STATE_HOME}/system_gateway/state.zsh"
+typeset -gA SYSTEM_STATE=()
+
+# Initialize all required arrays and hashes
+typeset -gA ENVMGR=()
+typeset -gA __system_integrations=()
+typeset -gA __system_states=()
+typeset -gA __system_capabilities=()
+typeset -gA env_vars=()
+typeset -gA file_handlers=()
+typeset -gA help_topics=()
+typeset -ga resource_priorities=()
+
+# Initialize the logging system first
+function __system_log {
+    typeset level=$1
+    shift
+    typeset msg=$*
+    printf "[%s] [%s] %s\n" "$(date "+%Y-%m-%d %H:%M:%S")" "${level}" "${msg}" >&2
+}
+
+# Ensure state directory exists
+[[ ! -d "${XDG_STATE_HOME}/system_gateway" ]] && mkdir -p "${XDG_STATE_HOME}/system_gateway"
+
+# Enable extended globbing and error handling
 setopt EXTENDED_GLOB
 
 # Make functions available
@@ -11,16 +42,8 @@ autoload -Uz system_help system_status system_reset system_sync
 autoload -Uz envinfo envhelp envset envsync
 autoload -Uz gac gap gapr gwi githelp
 
-# System-wide integration points
-typeset -gA __system_integrations=()
-typeset -gA __system_states=()
-typeset -gA __system_capabilities=()
-
-# Initialize resource arrays with human-centric priorities
-typeset -gA env_vars=()
-typeset -gA file_handlers=()
-typeset -gA help_topics=()
-typeset -ga resource_priorities=(
+# Set resource priorities with human-centric ordering
+resource_priorities=(
     'essential'   # Core system needs
     'protective'  # Security and safety
     'productive'  # Development tools
@@ -44,10 +67,10 @@ typeset -gA __feature_usage
 typeset -g SYSTEM_SAFE_MODE=0
 
 # Enhanced safety system
-function __ensure_safety() {
-    local operation="$1"
-    local fallback="$2"
-    local critical="${3:-0}"
+function __ensure_safety {
+    typeset operation="$1"
+    typeset fallback="$2"
+    typeset critical="${3:-0}"
 
     if (( $? != 0 )) || [[ "$SYSTEM_SAFE_MODE" == "1" ]]; then
         __system_log WARN "Operation failed: $operation"
@@ -58,39 +81,23 @@ function __ensure_safety() {
     return 0
 }
 
-# Enhanced logging with timestamps and context
-function __system_log() {
-    local level="$1"
+# Enhanced debug logging is implemented in the initialization section above
+# Keep the case statement for colored output in debug mode
+function __system_log_color {
+    typeset level="$1"
     shift
-    local msg="$*"
-    local ts=$(date '+%Y-%m-%d %H:%M:%S')
-    local context="${funcstack[3]:-system}"
-
-    # Ensure log directory exists
-    local log_dir="${XDG_STATE_HOME:-$HOME/.local/state}/system_gateway"
-    mkdir -p "$log_dir"
-
-    # Log rotation
-    local log_file="$log_dir/system.log"
-    if [[ -f "$log_file" ]] && [[ $(stat -f%z "$log_file") -gt 10485760 ]]; then
-        mv "$log_file" "$log_file.old"
-    fi
-
-    echo "[$ts] [$level] [$context] $msg" >> "$log_file"
-
-    # Terminal output with color
     case "$level" in
-        ERROR) print -P "%F{red}Error:%f $msg" >&2 ;;
-        WARN)  print -P "%F{yellow}Warning:%f $msg" >&2 ;;
-        INFO)  print -P "%F{blue}Info:%f $msg" ;;
-        DEBUG) [[ -n "$SYSTEM_DEBUG" ]] && print -P "%F{cyan}Debug:%f $msg" ;;
+        ERROR) print -P "%F{red}Error:%f $*" >&2 ;;
+        WARN)  print -P "%F{yellow}Warning:%f $*" >&2 ;;
+        INFO)  print -P "%F{blue}Info:%f $*" ;;
+        DEBUG) [[ -n "$SYSTEM_DEBUG" ]] && print -P "%F{cyan}Debug:%f $*" ;;
     esac
 }
 
 # Adaptive learning path tracking
-function __track_feature_usage() {
-    local feature="$1"
-    local level="${2:-regular}"
+function __track_feature_usage {
+    typeset feature="$1"
+    typeset level="${2:-regular}"
 
     # Skip if in safe mode
     [[ "$SYSTEM_SAFE_MODE" == "1" ]] && return 0
@@ -129,10 +136,10 @@ function __suggest_progression() {
 }
 
 # Cross-component registration
-function register_integration() {
-    local component="$1"
-    local capabilities="$2"
-    local state_handler="$3"
+function register_integration {
+    typeset component="$1"
+    typeset capabilities="$2"
+    typeset state_handler="$3"
 
     # Validate inputs
     if [[ -z "$component" || -z "$capabilities" ]]; then
@@ -171,10 +178,10 @@ function register_integration() {
 }
 
 # Proactive system monitoring
-function __monitor_system_health() {
-    local issues=()
-    local warnings=()
-    local suggestions=()
+function __monitor_system_health {
+    typeset -a issues
+    typeset -a warnings
+    typeset -a suggestions
 
     # Check component health
     for component state_handler in ${(kv)__system_states}; do
@@ -224,43 +231,72 @@ function __monitor_system_health() {
     return $(( ${#issues} > 0 ))
 }
 
-# Environment consistency check
-function __verify_environment_consistency() {
-    local issues=0
-
-    # Essential directory check
-    for dir in "$XDG_CONFIG_HOME" "$XDG_CACHE_HOME" "$XDG_DATA_HOME" "$XDG_STATE_HOME"; do
-        if [[ ! -d "$dir" ]]; then
-            __system_log WARN "Missing directory: $dir"
-            mkdir -p "$dir" || ((issues++))
-        fi
+# Environment verification and setup
+function __verify_environment_consistency {
+    emulate -L zsh
+    setopt LOCAL_OPTIONS ERR_RETURN NO_UNSET
+    
+    # Basic directory structure
+    mkdir -p "${XDG_CONFIG_HOME}"
+    mkdir -p "${XDG_CACHE_HOME}"
+    mkdir -p "${XDG_DATA_HOME}"
+    mkdir -p "${XDG_STATE_HOME}"
+    mkdir -p "${XDG_STATE_HOME}/system_gateway"
+    
+    # Verify write permissions
+    local _dir
+    for _dir in \
+        "${XDG_CONFIG_HOME}" \
+        "${XDG_CACHE_HOME}" \
+        "${XDG_DATA_HOME}" \
+        "${XDG_STATE_HOME}" \
+        "${XDG_STATE_HOME}/system_gateway"
+    do
+        [[ -w "${_dir}" ]] || {
+            __system_log ERROR "Directory not writable: ${_dir}"
+            return 1
+        }
     done
+    
+    return 0
+}
 
-    # State file integrity
-    if [[ -f "$ENVMGR_STATE_FILE" ]]; then
-        local temp_state
+# State file management
+function __init_state_file {
+    emulate -L zsh
+    setopt LOCAL_OPTIONS WARN_CREATE_GLOBAL
+    
+    typeset -i _status=0
+    
+    if [[ ! -f "$ENVMGR_STATE_FILE" ]]; then
+        __system_log INFO "Initializing state file"
+        cat > "$ENVMGR_STATE_FILE" <<EOL
+# System Gateway State File
+typeset -gA SYSTEM_STATE=(
+    [initialized]=$(date +%s)
+    [last_check]=$(date +%s)
+)
+EOL
+        chmod 600 "$ENVMGR_STATE_FILE"
+    elif [[ -r "$ENVMGR_STATE_FILE" ]]; then
         source "$ENVMGR_STATE_FILE" 2>/dev/null || {
             __system_log ERROR "Corrupted state file"
             mv "$ENVMGR_STATE_FILE" "$ENVMGR_STATE_FILE.broken"
-            ((issues++))
+            _status=1
         }
+    else
+        __system_log ERROR "State file not readable"
+        _status=1
     fi
-
-    # Tool availability
-    for tool in git python node mise; do
-        if ! command -v $tool >/dev/null 2>&1; then
-            __system_log WARN "Optional tool not available: $tool"
-        fi
-    done
-
-    return $issues
+    
+    return $_status
 }
 
 # Enhanced help system with context awareness
-function system_help() {
-    local topic="${1:-overview}"
-    local detail="${2:-basic}"
-    local context="${3:-current}"
+function system_help {
+    typeset topic="${1:-overview}"
+    typeset detail="${2:-basic}"
+    typeset context="${3:-current}"
 
     case "$topic" in
         overview)
@@ -910,3 +946,10 @@ function __check_system() {
     [[ -n "$__system_capabilities[system]" ]] || return 1
     return 0
 }
+# Initialize system if not already done
+if [[ -z "$__SYSTEM_GATEWAY_INITIALIZED" ]]; then
+    __verify_environment_consistency || return 1
+    __init_state_file || return 1
+    __SYSTEM_GATEWAY_INITIALIZED=1
+    __system_log INFO "System gateway initialized successfully"
+fi

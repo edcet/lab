@@ -3,17 +3,53 @@
 # Project Bootstrap System
 # Automatically detects and configures newly cloned repositories
 
+# Initialize state
+typeset -g __BOOTSTRAP_LOADED=0
+typeset -gA PROJECT_BOOTSTRAP_STATE=()
+typeset -gA PROJECT_TEMPLATES=()
+
 # Guard against double-loading
-if [[ -n "$__BOOTSTRAP_LOADED" ]]; then
+if (( __BOOTSTRAP_LOADED )); then
     return 0
 fi
-__BOOTSTRAP_LOADED=1
+
+# Check for required dependencies
+local -a missing_deps=()
+for dep in gpg jq python3 node; do
+    if ! command -v $dep >/dev/null 2>&1; then
+        missing_deps+=($dep)
+    fi
+done
+
+if (( ${#missing_deps} > 0 )); then
+    print -P "%F{red}Error: Missing required dependencies: ${(j:, :)missing_deps}%f"
+    return 1
+fi
+
+# Initialize XDG directories
+: ${XDG_CONFIG_HOME:="$HOME/.config"}
+: ${XDG_CACHE_HOME:="$HOME/.cache"}
+: ${XDG_DATA_HOME:="$HOME/.local/share"}
+: ${XDG_STATE_HOME:="$HOME/.local/state"}
 
 # Use system gateway for configuration
-sysgate env_set BOOTSTRAP_CONFIG_DIR "${XDG_CONFIG_HOME:-$HOME/.config}/project-bootstrap" permanent
-sysgate env_set BOOTSTRAP_CACHE_DIR "${XDG_CACHE_HOME:-$HOME/.cache}/project-bootstrap" permanent
-sysgate env_set BOOTSTRAP_DATA_DIR "${XDG_DATA_HOME:-$HOME/.local/share}/project-bootstrap" permanent
-sysgate env_set BOOTSTRAP_SECRETS_FILE "$BOOTSTRAP_CONFIG_DIR/secrets.gpg" permanent
+if ! command -v sysgate >/dev/null 2>&1; then
+    print -P "%F{red}Error: system_gateway.zsh not loaded%f"
+    return 1
+fi
+
+# Set up configuration directories
+typeset -g BOOTSTRAP_CONFIG_DIR="${XDG_CONFIG_HOME}/project-bootstrap"
+typeset -g BOOTSTRAP_CACHE_DIR="${XDG_CACHE_HOME}/project-bootstrap"
+typeset -g BOOTSTRAP_DATA_DIR="${XDG_DATA_HOME}/project-bootstrap"
+typeset -g BOOTSTRAP_STATE_DIR="${XDG_STATE_HOME}/project-bootstrap"
+typeset -g BOOTSTRAP_SECRETS_FILE="$BOOTSTRAP_CONFIG_DIR/secrets.gpg"
+
+sysgate env_set BOOTSTRAP_CONFIG_DIR "$BOOTSTRAP_CONFIG_DIR" permanent
+sysgate env_set BOOTSTRAP_CACHE_DIR "$BOOTSTRAP_CACHE_DIR" permanent
+sysgate env_set BOOTSTRAP_DATA_DIR "$BOOTSTRAP_DATA_DIR" permanent
+sysgate env_set BOOTSTRAP_STATE_DIR "$BOOTSTRAP_STATE_DIR" permanent
+sysgate env_set BOOTSTRAP_SECRETS_FILE "$BOOTSTRAP_SECRETS_FILE" permanent
 
 # Ensure directories exist through system gateway
 sysgate fs_mkdir "$BOOTSTRAP_CONFIG_DIR"
@@ -325,19 +361,40 @@ function __bootstrap_cleanup() {
 
 # Initialize on load
 __bootstrap_init() {
+    local -i ret=0
+
     # Create required directories through system gateway
-    sysgate fs_mkdir "$BOOTSTRAP_CONFIG_DIR"
-    sysgate fs_mkdir "$BOOTSTRAP_CACHE_DIR"
-    sysgate fs_mkdir "$BOOTSTRAP_DATA_DIR"
+    for dir in "$BOOTSTRAP_CONFIG_DIR" "$BOOTSTRAP_CACHE_DIR" "$BOOTSTRAP_DATA_DIR" "$BOOTSTRAP_STATE_DIR"; do
+        if ! sysgate fs_mkdir "$dir"; then
+            print -P "%F{red}Error: Failed to create directory: $dir%f"
+            ret=1
+        fi
+    done
 
     # Initialize secrets store if needed
     if ! sysgate fs_exists "$BOOTSTRAP_SECRETS_FILE"; then
-        echo "{}" | gpg --symmetric --output "$BOOTSTRAP_SECRETS_FILE"
+        if ! echo "{}" | gpg --symmetric --output "$BOOTSTRAP_SECRETS_FILE" 2>/dev/null; then
+            print -P "%F{red}Error: Failed to initialize secrets store%f"
+            ret=1
+        fi
     fi
 
-    print -P "%F{green}Project bootstrap system initialized%f"
+    if (( ret == 0 )); then
+        print -P "%F{green}Project bootstrap system initialized%f"
+        PROJECT_BOOTSTRAP_STATE[initialized]=1
+        __BOOTSTRAP_LOADED=1
+    else
+        print -P "%F{yellow}Project bootstrap system initialization failed%f"
+        return 1
+    fi
 }
+
+# Initialize the system
+__bootstrap_init || return 1
 
 # Export public interface
 export -f __bootstrap_detect_project
 export -f __bootstrap_cleanup
+
+# Cleanup on exit
+add-zsh-hook zshexit __bootstrap_cleanup

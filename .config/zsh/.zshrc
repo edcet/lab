@@ -18,10 +18,27 @@ if command -v mise &> /dev/null; then
     eval "$(mise activate zsh)"
 fi
 
-# Load core configuration
-for conf in "$ZDOTDIR/conf.d/"*.zsh(N); do
-    source "$conf"
-done
+# Load core initialization
+if [[ -f "$ZDOTDIR/zsh_init.zsh" ]]; then
+    if ! source "$ZDOTDIR/zsh_init.zsh"; then
+        echo "Error: Failed to source zsh_init.zsh" >&2
+        return 1
+    fi
+else
+    echo "Warning: zsh_init.zsh not found at $ZDOTDIR/zsh_init.zsh" >&2
+fi
+
+# Load modular configuration
+if [[ -d "$ZDOTDIR/conf.d" ]]; then
+    for conf in "$ZDOTDIR/conf.d/"*.zsh(N); do
+        if ! source "$conf"; then
+            echo "Error: Failed to source $conf" >&2
+            continue
+        fi
+    done
+else
+    echo "Warning: conf.d directory not found at $ZDOTDIR/conf.d" >&2
+fi
 
 # Initialize interactive tools last
 if command -v starship &> /dev/null; then
